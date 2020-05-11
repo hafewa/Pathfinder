@@ -1,41 +1,47 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using UnityEngine.Experimental.PlayerLoop;
 
 namespace Pathfinder
 {
 
 	public class PFQuadTree
 	{
-		public const int PATH_FINDER_CONTAIN_NUMBER = 8;
+		public const int PATH_FINDER_CONTAIN_NUMBER = 3;
 
 		bool isActive;
 
-		int depath;
+		public int depath;
+
+		public PFQuadTree root;
 
 		//父节点
-		PFQuadTree parent;
+		public PFQuadTree parent;
 
 		//子节点
-		PFQuadTree[] children;
+		public PFQuadTree[] children;
 
-		LinkedList<PFIQuadNode> quadLinkedList;
+		public LinkedList<PFIQuadNode> quadLinkedList;
 
 		//区域范围
-		PFRect rect;
+		public PFRect rect;
 
-		public PFQuadTree(PFQuadTree parent, PFRect rect, int depath)
+		public PFQuadTree(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
 		{
 			this.isActive = true;
 			this.rect = rect;
+			this.root = root == null ? this : root;
 			this.parent = parent;
 			children = null;
 			this.depath = depath;
+			quadLinkedList = new LinkedList<PFIQuadNode>();
 		}
 
-		public void ResetRuntime(PFQuadTree parent, PFRect rect, int depath)
+		public void ResetRuntime(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
 		{
 			isActive = true;
+			this.root = root == null ? this : root;
 			this.parent = parent;
 			this.rect = rect;
 			this.depath = depath;
@@ -56,8 +62,8 @@ namespace Pathfinder
 				case PFQuadNodeState.In:
 					if (children != null)
 					{
-						index = quadNode.point.x <= rect.x / 2 ? 0 : 1;
-						index = quadNode.point.y <= rect.y / 2 ? index + 2 : index;
+						index = quadNode.point.x <= (rect.x + rect.x1) / 2 ? 0 : 1;
+						index = quadNode.point.y <= (rect.y + rect.y1) / 2 ? index : index + 2;
 						switch (children[index].AddQuadNode(quadNode))
 						{
 							case (PFQuadNodeState.In):
@@ -71,6 +77,7 @@ namespace Pathfinder
 					}
 					quadLinkedList.AddLast(quadNode);
 					quadNode.parentLinkNode = quadLinkedList.Last;
+					quadNode.parent = this;
 					break;
 
 				//相交则不保存，由父节点继续持有
@@ -86,26 +93,26 @@ namespace Pathfinder
 			}
 
 			//如果数量超过容纳范围，则将当前格子分裂4块
-			if (quadLinkedList.Count > PATH_FINDER_CONTAIN_NUMBER)
+			if ((children == null) && (quadLinkedList.Count > PATH_FINDER_CONTAIN_NUMBER))
 			{
 				children = new PFQuadTree[4];
 				for (int i = 0; i < 4; i++)
 				{
 					PFQuadTree lastValue = null;
-					int x = rect.x + (rect.x1 - rect.x) * (i % 2);
-					int y = rect.y + (rect.y1 - rect.y) * (i / 2);
+					int x = rect.x + (rect.x1 - rect.x) / 2 * (i % 2);
+					int y = rect.y + (rect.y1 - rect.y) / 2 * (i / 2);
 					int x1 = x + (rect.x1 - rect.x) / 2;
 					int y1 = y + (rect.y1 - rect.y) / 2;
 					if (PFQuadCache.quadTrees.Count > 0)
 					{
 						lastValue = PFQuadCache.quadTrees.Last.Value;
 						PFQuadCache.quadTrees.RemoveLast();
-						lastValue.ResetRuntime(this, new PFRect(x, y, x1, y1), depath + 1);
+						lastValue.ResetRuntime(root, this, new PFRect(x, y, x1, y1), depath + 1);
 						children[i] = lastValue;
 					}
 					else
 					{
-						children[i] = new PFQuadTree(this, new PFRect(x, y, x1, y1), depath + 1);
+						children[i] = new PFQuadTree(root, this, new PFRect(x, y, x1, y1), depath + 1);
 					}
 				}
 
@@ -117,8 +124,8 @@ namespace Pathfinder
 				{
 					nodeNext = node.Next;
 					PFIQuadNode tempQuadNode = node.Value;
-					index = tempQuadNode.point.x <= rect.x / 2 ? 0 : 1;
-					index = tempQuadNode.point.y <= rect.y / 2 ? index + 2 : index;
+					index = tempQuadNode.point.x <= (rect.x + rect.x1) / 2 ? 0 : 1;
+					index = tempQuadNode.point.y <= (rect.y + rect.y1) / 2 ? index : index + 2;
 					switch (children[index].AddQuadNode(tempQuadNode))
 					{
 						case (PFQuadNodeState.In):
@@ -145,34 +152,95 @@ namespace Pathfinder
 		{
 			quadNode.parent.quadLinkedList.Remove(quadNode.parentLinkNode);
 			quadNode.parentLinkNode = null;
+			quadNode.parent = null;
 		}
 
 		/// <summary>
-		///	更新节点
+		/// 移除子节点
 		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <param name="quadNode">节点</param>
-		public void UpdateQuadNode<T>(T quadNode) where T : PFIQuadNode
+		public void RemoveChildren()
 		{
+			if (children == null)
+			{
+				return;
+			}
+			RecycleQuadNodesFromChildren(quadLinkedList);
+			foreach(var quadTress in children)
+			{
+				quadTress.ReleaseToCache();
+			}
+			children = null;
+		}
 
+		/// <summary>
+		/// 回收子节点
+		/// </summary>
+		/// <param name="parentQuadLinkedList"></param>
+		void RecycleQuadNodesFromChildren(LinkedList<PFIQuadNode> parentQuadLinkedList)
+		{
+			if (children == null)
+			{
+				foreach (var quadNode in quadLinkedList)
+				{
+					parentQuadLinkedList.AddLast(quadNode);
+				}
+				quadLinkedList.Clear();
+				return;
+			}
+			foreach (var quadTress in children)
+			{
+				quadTress.RecycleQuadNodesFromChildren(parentQuadLinkedList);
+			}
+		}
+
+		public void Update()
+		{
+			if (IsNeedRemoveChildren())
+			{
+				RemoveChildren();
+				if(parent != null) parent.Update();
+			}
+		}
+
+		/// <summary>
+		///	检测是否需要移除子节点
+		/// </summary>
+		/// <returns></returns>
+		public bool IsNeedRemoveChildren()
+		{
+			int cout = GetQuadNodeNumbers();
+			if (cout > PATH_FINDER_CONTAIN_NUMBER)
+			{
+				return false;
+			}
+			return true;
+		}
+
+		public int GetQuadNodeNumbers()
+		{
+			int cout = quadLinkedList.Count;
+			if (children != null)
+			{
+				foreach (var quadTress in children)
+				{
+					cout += quadTress.GetQuadNodeNumbers();
+				}
+			}
+			return cout;
 		}
 
 		public void ReleaseToCache()
 		{
 			isActive = false;
 			parent = null;
-
+			
 			//将树节点加入缓存
 			if (children != null)
 			{
-				children[0].ReleaseToCache();
-				PFQuadCache.quadTrees.AddLast(children[0]);
-				children[1].ReleaseToCache();
-				PFQuadCache.quadTrees.AddLast(children[1]);
-				children[2].ReleaseToCache();
-				PFQuadCache.quadTrees.AddLast(children[2]);
-				children[3].ReleaseToCache();
-				PFQuadCache.quadTrees.AddLast(children[3]);
+				PFQuadCache.AddQuadTree(children[0]);
+				PFQuadCache.AddQuadTree(children[1]);
+				PFQuadCache.AddQuadTree(children[2]);
+				PFQuadCache.AddQuadTree(children[3]);
 				children = null;
 			}
 
@@ -184,7 +252,7 @@ namespace Pathfinder
 					switch (quadNode.shape)
 					{
 						case (PFQuadShape.Circle):
-							PFQuadCache.quadCircles.AddLast((PFQuadCircle)quadNode);
+							PFQuadCache.AddQuadCircle((PFQuadCircle)quadNode);
 							break;
 					}
 				}
