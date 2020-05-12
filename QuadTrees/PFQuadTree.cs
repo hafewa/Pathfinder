@@ -8,7 +8,7 @@ namespace Pathfinder
 
 	public class PFQuadTree
 	{
-		public const int PATH_FINDER_CONTAIN_NUMBER = 3;
+		public const int PATH_FINDER_CONTAIN_NUMBER = 8;
 
 		bool isActive;
 

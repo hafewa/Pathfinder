@@ -23,8 +23,10 @@ namespace Pathfinder
 
 		//挂载的父节点
 		public PFQuadTree parent;
-
 		public LinkedListNode<PFIQuadNode> parentLinkNode;
+
+		//与父节点关系
+		public PFQuadNodeState nodeState;
 
 		//形状
 		public PFQuadShape shape;
@@ -46,6 +48,7 @@ namespace Pathfinder
 		public PFQuadCircle(PFPoint point, int radius)
 		{
 			shape = PFQuadShape.Circle;
+			nodeState = PFQuadNodeState.Out;
 			this.parent = null;
 			this.parentLinkNode = null;
 			this.point = point;
@@ -90,7 +93,17 @@ namespace Pathfinder
 				return;
 			}
 			if(CheckState(parent) == PFQuadNodeState.In){
-				return;
+				if(parent.children == null)
+				{
+					return;
+				}
+				int index;
+				index = point.x <= (parent.rect.x + parent.rect.x1) / 2 ? 0 : 1;
+				index = point.y <= (parent.rect.y + parent.rect.y1) / 2 ? index : index + 2;
+				if (CheckState(parent.children[index]) != PFQuadNodeState.In)
+				{
+					return;
+				}
 			}
 			PFQuadTree tempParent = parent;
 			parent.RemoveQuadNode(this);
