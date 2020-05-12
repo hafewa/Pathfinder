@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using UnityEngine;
 
 namespace Pathfinder
 {
@@ -23,7 +24,7 @@ namespace Pathfinder
 
 		//挂载的父节点
 		public PFQuadTree parent;
-		public LinkedListNode<PFIQuadNode> parentLinkNode;
+		public LinkedListNode<PFQuadCircle> parentLinkNode;
 
 		//与父节点关系
 		public PFQuadNodeState nodeState;
@@ -42,10 +43,12 @@ namespace Pathfinder
 	public class PFQuadCircle : PFIQuadNode
 	{
 
-		//半径
-		int radius;
+		List<PFQuadCircle> nearQuadNodes;
 
-		public PFQuadCircle(PFPoint point, int radius)
+		//半径
+		public long radius;
+
+		public PFQuadCircle(PFPoint point, long radius)
 		{
 			shape = PFQuadShape.Circle;
 			nodeState = PFQuadNodeState.Out;
@@ -53,6 +56,7 @@ namespace Pathfinder
 			this.parentLinkNode = null;
 			this.point = point;
 			this.radius = radius;
+			nearQuadNodes = new List<PFQuadCircle>();
 		}
 
 		/// <summary>
@@ -83,6 +87,34 @@ namespace Pathfinder
 			}
 		}
 
+		public void UpdatePosition(PFPoint point)
+		{
+			nearQuadNodes.Clear();
+			parent.FindNearQuadNodes(this, nearQuadNodes);
+			if(nearQuadNodes.Count > 0)
+			{
+				PFPoint movePoint = new PFPoint(0, 0);
+				foreach (var quadNode in nearQuadNodes)
+				{
+					if (quadNode == this)
+					{
+						continue;
+					}
+					long distanceSquare = point.SquareDistance(quadNode.point);
+					long dr = radius + quadNode.radius;
+					if (distanceSquare < dr * dr)
+					{
+						long distance = (long)Math.Sqrt(distanceSquare);
+						PFPoint tempMovePoint = point - quadNode.point;
+						movePoint = movePoint + tempMovePoint.normalized(radius + quadNode.radius - distance);
+					}
+				}
+				point += movePoint;
+			}
+			this.point = point;
+			Update();
+		}
+
 		/// <summary>
 		///	更新节点
 		/// </summary>
@@ -108,12 +140,18 @@ namespace Pathfinder
 			PFQuadTree tempParent = parent;
 			parent.RemoveQuadNode(this);
 			tempParent.root.AddQuadNode(this);
+			if(parent == null)
+			{
+				Debug.Log("=========================");
+			}
 			tempParent.Update();
 		}
 
 		public override void ReleaseToCache()
 		{
+			nearQuadNodes.Clear();
 			parent = null;
+			parentLinkNode = null;
 		}
 	}
 }

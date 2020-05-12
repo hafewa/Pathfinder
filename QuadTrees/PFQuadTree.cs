@@ -10,8 +10,6 @@ namespace Pathfinder
 	{
 		public const int PATH_FINDER_CONTAIN_NUMBER = 8;
 
-		bool isActive;
-
 		public int depath;
 
 		public PFQuadTree root;
@@ -22,29 +20,28 @@ namespace Pathfinder
 		//子节点
 		public PFQuadTree[] children;
 
-		public LinkedList<PFIQuadNode> quadLinkedList;
+		public LinkedList<PFQuadCircle> quadLinkedList;
 
 		//区域范围
 		public PFRect rect;
 
 		public PFQuadTree(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
 		{
-			this.isActive = true;
 			this.rect = rect;
 			this.root = root == null ? this : root;
 			this.parent = parent;
 			children = null;
 			this.depath = depath;
-			quadLinkedList = new LinkedList<PFIQuadNode>();
+			quadLinkedList = new LinkedList<PFQuadCircle>();
 		}
 
 		public void ResetRuntime(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
 		{
-			isActive = true;
 			this.root = root == null ? this : root;
 			this.parent = parent;
 			this.rect = rect;
 			this.depath = depath;
+			quadLinkedList.Clear();
 		}
 
 		/// <summary>
@@ -52,7 +49,7 @@ namespace Pathfinder
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="quadNode">节点</param>
-		public PFQuadNodeState AddQuadNode(PFIQuadNode quadNode)
+		public PFQuadNodeState AddQuadNode(PFQuadCircle quadNode)
 		{
 			PFQuadNodeState state = quadNode.CheckState(this);
 			int index = 0;
@@ -99,10 +96,10 @@ namespace Pathfinder
 				for (int i = 0; i < 4; i++)
 				{
 					PFQuadTree lastValue = null;
-					int x = rect.x + (rect.x1 - rect.x) / 2 * (i % 2);
-					int y = rect.y + (rect.y1 - rect.y) / 2 * (i / 2);
-					int x1 = x + (rect.x1 - rect.x) / 2;
-					int y1 = y + (rect.y1 - rect.y) / 2;
+					long x = rect.x + (rect.x1 - rect.x) / 2 * (i % 2);
+					long y = rect.y + (rect.y1 - rect.y) / 2 * (i / 2);
+					long x1 = x + (rect.x1 - rect.x) / 2;
+					long y1 = y + (rect.y1 - rect.y) / 2;
 					if (PFQuadCache.quadTrees.Count > 0)
 					{
 						lastValue = PFQuadCache.quadTrees.Last.Value;
@@ -117,13 +114,13 @@ namespace Pathfinder
 				}
 
 				//将父节点的节点转到子节点
-				LinkedListNode<PFIQuadNode> node;
-				LinkedListNode<PFIQuadNode> nodeNext;
+				LinkedListNode<PFQuadCircle> node;
+				LinkedListNode<PFQuadCircle> nodeNext;
 				node = quadLinkedList.First;
 				while (node != null)
 				{
 					nodeNext = node.Next;
-					PFIQuadNode tempQuadNode = node.Value;
+					PFQuadCircle tempQuadNode = node.Value;
 					index = tempQuadNode.point.x <= (rect.x + rect.x1) / 2 ? 0 : 1;
 					index = tempQuadNode.point.y <= (rect.y + rect.y1) / 2 ? index : index + 2;
 					switch (children[index].AddQuadNode(tempQuadNode))
@@ -148,8 +145,12 @@ namespace Pathfinder
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="quadNode">节点</param>
-		public void RemoveQuadNode(PFIQuadNode quadNode)
+		public void RemoveQuadNode(PFQuadCircle quadNode)
 		{
+			if (!quadNode.parent.quadLinkedList.Contains(quadNode))
+			{
+				UnityEngine.Debug.LogError("-------------------");
+			}
 			quadNode.parent.quadLinkedList.Remove(quadNode.parentLinkNode);
 			quadNode.parentLinkNode = null;
 			quadNode.parent = null;
@@ -164,7 +165,7 @@ namespace Pathfinder
 			{
 				return;
 			}
-			RecycleQuadNodesFromChildren(quadLinkedList);
+			RecycleQuadNodesFromChildren(this, quadLinkedList);
 			foreach(var quadTress in children)
 			{
 				quadTress.ReleaseToCache();
@@ -176,20 +177,51 @@ namespace Pathfinder
 		/// 回收子节点
 		/// </summary>
 		/// <param name="parentQuadLinkedList"></param>
-		void RecycleQuadNodesFromChildren(LinkedList<PFIQuadNode> parentQuadLinkedList)
+		void RecycleQuadNodesFromChildren(PFQuadTree quadTree,  LinkedList<PFQuadCircle> parentQuadLinkedList)
 		{
 			if (children == null)
 			{
 				foreach (var quadNode in quadLinkedList)
 				{
 					parentQuadLinkedList.AddLast(quadNode);
+					quadNode.parent = quadTree;
+					quadNode.parentLinkNode = parentQuadLinkedList.Last;
 				}
 				quadLinkedList.Clear();
 				return;
 			}
 			foreach (var quadTress in children)
 			{
-				quadTress.RecycleQuadNodesFromChildren(parentQuadLinkedList);
+				quadTress.RecycleQuadNodesFromChildren(quadTree, parentQuadLinkedList);
+			}
+		}
+
+		public void FindNearQuadNodes(PFQuadCircle quadNode, List<PFQuadCircle> tempList)
+		{
+			PFQuadTree quadTree = root;
+			__FindNearQuadNodes(root, quadNode, tempList);
+		}
+
+		public static void __FindNearQuadNodes(PFQuadTree quadTree, PFIQuadNode quadNode, List<PFQuadCircle> tempList)
+		{
+			if(quadTree.quadLinkedList.Count > 0)
+			{
+				foreach(var tempQuadNode in quadTree.quadLinkedList)
+				{
+					tempList.Add(tempQuadNode);
+				}
+			}
+			if(quadNode.parent == quadTree)
+			{
+				return;
+			}
+			if(quadTree.children != null)
+			{
+				long index;
+				index = quadNode.point.x <= (quadTree.rect.x + quadTree.rect.x1) / 2 ? 0 : 1;
+				index = quadNode.point.y <= (quadTree.rect.y + quadTree.rect.y1) / 2 ? index : index + 2;
+				__FindNearQuadNodes(quadTree.children[index], quadNode, tempList);
+				
 			}
 		}
 
@@ -231,7 +263,6 @@ namespace Pathfinder
 
 		public void ReleaseToCache()
 		{
-			isActive = false;
 			parent = null;
 			
 			//将树节点加入缓存
