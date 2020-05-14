@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MctClient.Framework;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -19,7 +20,7 @@ namespace Pathfinder
 		Circle,
 	}
 
-	public abstract class PFIQuadNode
+	public abstract class PFIQuadNode : IMctCache
 	{
 
 		//挂载的父节点
@@ -38,6 +39,8 @@ namespace Pathfinder
 		public abstract PFQuadNodeState CheckState(PFQuadTree quadTree);
 
 		public abstract void ReleaseToCache();
+
+		public abstract void ResetFromCache();
 	}
 
 	public class PFQuadCircle : PFIQuadNode
@@ -46,9 +49,9 @@ namespace Pathfinder
 		List<PFQuadCircle> nearQuadNodes;
 
 		//半径
-		public long radius;
+		public int radius;
 
-		public PFQuadCircle(PFPoint point, long radius)
+		public PFQuadCircle(PFPoint point, int radius)
 		{
 			shape = PFQuadShape.Circle;
 			nodeState = PFQuadNodeState.Out;
@@ -76,7 +79,7 @@ namespace Pathfinder
 			}
 			else
 			{
-				if(PFMath.RectCircleIntersect(quadTree.rect, point, radius))
+				if(PFMathIntersection.RectCircleIntersect(quadTree.rect, point, radius))
 				{
 					return PFQuadNodeState.Intersect;
 				}
@@ -104,7 +107,7 @@ namespace Pathfinder
 					long dr = radius + quadNode.radius;
 					if (distanceSquare < dr * dr)
 					{
-						long distance = (long)Math.Sqrt(distanceSquare);
+						int distance = (int)Math.Sqrt(distanceSquare);
 						PFPoint tempMovePoint = point - quadNode.point;
 						movePoint = movePoint + tempMovePoint.normalized(radius + quadNode.radius - distance);
 					}
@@ -140,11 +143,12 @@ namespace Pathfinder
 			PFQuadTree tempParent = parent;
 			parent.RemoveQuadNode(this);
 			tempParent.root.AddQuadNode(this);
-			if(parent == null)
-			{
-				Debug.Log("=========================");
-			}
 			tempParent.Update();
+		}
+
+		public override void ResetFromCache()
+		{
+
 		}
 
 		public override void ReleaseToCache()

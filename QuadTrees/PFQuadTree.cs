@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MctClient.Framework;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine.Experimental.PlayerLoop;
@@ -6,7 +7,7 @@ using UnityEngine.Experimental.PlayerLoop;
 namespace Pathfinder
 {
 
-	public class PFQuadTree
+	public class PFQuadTree : IMctCache
 	{
 		public const int PATH_FINDER_CONTAIN_NUMBER = 8;
 
@@ -81,11 +82,11 @@ namespace Pathfinder
 				case PFQuadNodeState.Intersect:
 					if(parent == null)
 					{
-						Debug.Fail("AddQuadNode 异常：节点不在根数节点内");
+						UnityEngine.Debug.LogError("AddQuadNode 异常：节点不在根数节点内");
 					}
 					break;
 				case PFQuadNodeState.Out:
-					Debug.Fail("AddQuadNode 异常：状态OUT");
+					UnityEngine.Debug.LogError("AddQuadNode 异常：状态OUT");
 					break;
 			}
 
@@ -95,17 +96,14 @@ namespace Pathfinder
 				children = new PFQuadTree[4];
 				for (int i = 0; i < 4; i++)
 				{
-					PFQuadTree lastValue = null;
-					long x = rect.x + (rect.x1 - rect.x) / 2 * (i % 2);
-					long y = rect.y + (rect.y1 - rect.y) / 2 * (i / 2);
-					long x1 = x + (rect.x1 - rect.x) / 2;
-					long y1 = y + (rect.y1 - rect.y) / 2;
-					if (PFQuadCache.quadTrees.Count > 0)
+					int x = rect.x + (rect.x1 - rect.x) / 2 * (i % 2);
+					int y = rect.y + (rect.y1 - rect.y) / 2 * (i / 2);
+					int x1 = x + (rect.x1 - rect.x) / 2;
+					int y1 = y + (rect.y1 - rect.y) / 2;
+					children[i] = MctCacheManager.GetInstantiateFromCache<PFQuadTree>();
+					if (children[i] != null)
 					{
-						lastValue = PFQuadCache.quadTrees.Last.Value;
-						PFQuadCache.quadTrees.RemoveLast();
-						lastValue.ResetRuntime(root, this, new PFRect(x, y, x1, y1), depath + 1);
-						children[i] = lastValue;
+						children[i].ResetRuntime(root, this, new PFRect(x, y, x1, y1), depath + 1);
 					}
 					else
 					{
@@ -147,10 +145,6 @@ namespace Pathfinder
 		/// <param name="quadNode">节点</param>
 		public void RemoveQuadNode(PFQuadCircle quadNode)
 		{
-			if (!quadNode.parent.quadLinkedList.Contains(quadNode))
-			{
-				UnityEngine.Debug.LogError("-------------------");
-			}
 			quadNode.parent.quadLinkedList.Remove(quadNode.parentLinkNode);
 			quadNode.parentLinkNode = null;
 			quadNode.parent = null;
@@ -169,6 +163,7 @@ namespace Pathfinder
 			foreach(var quadTress in children)
 			{
 				quadTress.ReleaseToCache();
+				MctCacheManager.AddInstantiateToCache(quadTress);
 			}
 			children = null;
 		}
@@ -217,7 +212,7 @@ namespace Pathfinder
 			}
 			if(quadTree.children != null)
 			{
-				long index;
+				int index;
 				index = quadNode.point.x <= (quadTree.rect.x + quadTree.rect.x1) / 2 ? 0 : 1;
 				index = quadNode.point.y <= (quadTree.rect.y + quadTree.rect.y1) / 2 ? index : index + 2;
 				__FindNearQuadNodes(quadTree.children[index], quadNode, tempList);
@@ -261,6 +256,11 @@ namespace Pathfinder
 			return cout;
 		}
 
+		public void ResetFromCache()
+		{
+
+		}
+
 		public void ReleaseToCache()
 		{
 			parent = null;
@@ -268,10 +268,10 @@ namespace Pathfinder
 			//将树节点加入缓存
 			if (children != null)
 			{
-				PFQuadCache.AddQuadTree(children[0]);
-				PFQuadCache.AddQuadTree(children[1]);
-				PFQuadCache.AddQuadTree(children[2]);
-				PFQuadCache.AddQuadTree(children[3]);
+				MctCacheManager.AddInstantiateToCache(children[0]);
+				MctCacheManager.AddInstantiateToCache(children[1]);
+				MctCacheManager.AddInstantiateToCache(children[2]);
+				MctCacheManager.AddInstantiateToCache(children[3]);
 				children = null;
 			}
 
@@ -283,7 +283,7 @@ namespace Pathfinder
 					switch (quadNode.shape)
 					{
 						case (PFQuadShape.Circle):
-							PFQuadCache.AddQuadCircle((PFQuadCircle)quadNode);
+							MctCacheManager.AddInstantiateToCache(quadNode);
 							break;
 					}
 				}
