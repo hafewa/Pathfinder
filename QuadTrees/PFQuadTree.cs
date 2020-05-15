@@ -36,7 +36,35 @@ namespace Pathfinder
 			quadLinkedList = new LinkedList<PFQuadCircle>();
 		}
 
-		public void ResetRuntime(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
+		public void ResetRuntime()
+		{
+			//将树节点加入缓存
+			if (children != null)
+			{
+				MctCacheManager.AddInstantiateToCache(children[0]);
+				MctCacheManager.AddInstantiateToCache(children[1]);
+				MctCacheManager.AddInstantiateToCache(children[2]);
+				MctCacheManager.AddInstantiateToCache(children[3]);
+				children = null;
+			}
+
+			//将节点加入缓存
+			if (quadLinkedList.Count > 0)
+			{
+				foreach (PFIQuadNode quadNode in quadLinkedList)
+				{
+					switch (quadNode.shape)
+					{
+						case (PFQuadShape.Circle):
+							MctCacheManager.AddInstantiateToCache(quadNode);
+							break;
+					}
+				}
+				quadLinkedList.Clear();
+			}
+		}
+
+		void InitRuntime(PFQuadTree root, PFQuadTree parent, PFRect rect, int depath)
 		{
 			this.root = root == null ? this : root;
 			this.parent = parent;
@@ -103,7 +131,7 @@ namespace Pathfinder
 					children[i] = MctCacheManager.GetInstantiateFromCache<PFQuadTree>();
 					if (children[i] != null)
 					{
-						children[i].ResetRuntime(root, this, new PFRect(x, y, x1, y1), depath + 1);
+						children[i].InitRuntime(root, this, new PFRect(x, y, x1, y1), depath + 1);
 					}
 					else
 					{
@@ -264,33 +292,11 @@ namespace Pathfinder
 		public void ReleaseToCache()
 		{
 			parent = null;
-			
-			//将树节点加入缓存
-			if (children != null)
+			if(quadLinkedList.Count > 0)
 			{
-				MctCacheManager.AddInstantiateToCache(children[0]);
-				MctCacheManager.AddInstantiateToCache(children[1]);
-				MctCacheManager.AddInstantiateToCache(children[2]);
-				MctCacheManager.AddInstantiateToCache(children[3]);
-				children = null;
-			}
-
-			//将节点加入缓存
-			if (quadLinkedList.Count > 0)
-			{
-				foreach(PFIQuadNode quadNode in quadLinkedList)
-				{
-					switch (quadNode.shape)
-					{
-						case (PFQuadShape.Circle):
-							MctCacheManager.AddInstantiateToCache(quadNode);
-							break;
-					}
-				}
-				quadLinkedList.Clear();
-
 				Debug.Fail("清理树节点异常：不应该存在PFIQuadNode");
 			}
+			ResetRuntime();
 		}
 
 	}

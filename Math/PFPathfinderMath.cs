@@ -119,4 +119,26 @@ namespace Pathfinder
 			return new PFRect(a.x / b.x, a.y / b.y, a.x1 / b.x1, a.y1 / b.y1);
 		}
 	}
+
+	public class PFPathfinderMath
+	{
+		public static PFPoint MoveTo(PFPoint startPoint, PFPoint endPoint, int stepLen)
+		{
+			long dx = endPoint.x - startPoint.x;
+			long dy = endPoint.y - startPoint.y;
+			long len = endPoint.Distance(startPoint);
+			if (stepLen > len)
+			{
+				return endPoint;
+			}
+			else
+			{
+				long moveDistanceX = (int)(stepLen * dx / len);
+				long moveDistanceY = (int)(stepLen * dy / len);
+				long nextX = startPoint.x + moveDistanceX;
+				long nextY = startPoint.y + moveDistanceY;
+				return new PFPoint((int)nextX, (int)nextY);
+			}
+		}
+	}
 }

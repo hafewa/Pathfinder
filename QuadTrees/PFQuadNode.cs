@@ -62,6 +62,12 @@ namespace Pathfinder
 			nearQuadNodes = new List<PFQuadCircle>();
 		}
 
+		public void	InitRuntime(PFPoint point, int radius)
+		{
+			this.point = point;
+			this.radius = radius;
+		}
+
 		/// <summary>
 		///判断节点与区域的关系
 		/// </summary>
@@ -156,6 +162,7 @@ namespace Pathfinder
 			nearQuadNodes.Clear();
 			parent = null;
 			parentLinkNode = null;
+			nodeState = PFQuadNodeState.Out;
 		}
 	}
 }

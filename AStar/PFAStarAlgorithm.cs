@@ -3,24 +3,22 @@
 using MctClient.Framework;
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
-using UnityEditor;
-using UnityEditorInternal;
 using UnityEngine;
 
 namespace Pathfinder
 {
-    class PFAStarAlgorithm
+    public class PFAStarAlgorithm
     {
         int[] AROUND_POINT_POS = { -1, -1, -1, 0, -1, 1, 0, -1, 0, 1, 1, -1, 1, 0, 1, 1 };
-        int SQRT2 = 1414;
+        int SQRT2_G_VALUE = 1414;
+        int BASE_G_VALUE = 1000;
 
         public int width;
         public int height;
 
         //掩码信息
         byte[,] tiledMasks;
-        byte[,] tiledMasksRuntime;
+        public byte[,] tiledMasksRuntime;
 
         LinkedList<PFAStarPoint> openLinkedList;
         LinkedList<PFAStarPoint> closeLinkedList;
@@ -63,10 +61,11 @@ namespace Pathfinder
             {
                 maxStep = width * height;
             }
-            ResetRuntime();
+            ClearOpenAndCloseList();
+            starPointMap.Clear();
             PFAStarPoint aStarPoint = CreatAStartPoint(null, startPoint);
             aStarPoint.G = 0;
-            aStarPoint.H = Math.Abs(startPoint.x - endPoint.x) + Math.Abs(startPoint.y - endPoint.y);
+            aStarPoint.H = (Math.Abs(startPoint.x - endPoint.x) + Math.Abs(startPoint.y - endPoint.y)) * BASE_G_VALUE;
             aStarPoint.F = aStarPoint.G + aStarPoint.H;
 
             openLinkedList.AddLast(aStarPoint);
@@ -133,15 +132,15 @@ namespace Pathfinder
                     }
                     int gValue = 0;
                     bool isCanTurnAround = false;
-                    if(index == 1 || index == 5 || index == 11 || index == 15)
+                    if(index == 0 || index == 4 || index == 10 || index == 14)
                     {
-                        gValue = SQRT2;
-                        int walkX1 = openTiledX + dx + 1;
-                        int walkY1 = openTiledY + 1;
+                        gValue = SQRT2_G_VALUE;
+                        int walkX1 = cTiledX + dx;
+                        int walkY1 = cTiledY;
                         if ((walkX1 >= 0) && (walkX1 < width) && (walkY1 >= 0) && (walkY1 < height) && ((tiledMasksRuntime[walkX1, walkY1] & limitMask) == 0))
                         {
-                            walkX1 = openTiledX + 1;
-                            walkY1 = openTiledY + dy + 1;
+                            walkX1 = cTiledX;
+                            walkY1 = cTiledY + dy;
                             if((walkX1 >= 0) && (walkX1 < width) && (walkY1 >= 0) && (walkY1 < height) && ((tiledMasksRuntime[walkX1, walkY1] & limitMask) == 0))
                             {
                                 isCanTurnAround = true;
@@ -150,7 +149,7 @@ namespace Pathfinder
                     }
                     else
                     {
-                        gValue = 1;
+                        gValue = BASE_G_VALUE;
                         isCanTurnAround = true;
                     }
                     if (!isCanTurnAround)
@@ -166,7 +165,7 @@ namespace Pathfinder
                             if (pointG < tempAStarPoint.G)
                             {
                                 tempAStarPoint.G = pointG;
-                                tempAStarPoint.H = pointG + tempAStarPoint.H;
+                                tempAStarPoint.F = pointG + tempAStarPoint.H;
                                 tempAStarPoint.parent = currentAStarPoint;
                             }
                         }
@@ -175,7 +174,7 @@ namespace Pathfinder
                     {
                         PFAStarPoint newAStarPoint = CreatAStartPoint(currentAStarPoint, new PFPoint(openTiledX, openTiledY));
                         newAStarPoint.G = currentAStarPoint.G + gValue;
-                        newAStarPoint.H = currentAStarPoint.H = Math.Abs(openTiledX - endPoint.x) + Math.Abs(openTiledY - endPoint.y);
+                        newAStarPoint.H = (Math.Abs(openTiledX - endPoint.x) + Math.Abs(openTiledY - endPoint.y)) * BASE_G_VALUE;
                         newAStarPoint.F = newAStarPoint.G + newAStarPoint.H;
                         newAStarPoint.step = currentAStarPoint.step + 1;
                         openLinkedList.AddLast(newAStarPoint);
@@ -206,38 +205,39 @@ namespace Pathfinder
 
         public void AddObstacle(PFPoint point)
         {
+#if DEBUG
             if (point.x < 0 || point.x >= width || point.y < 0 || point.y >= height)
             {
+                Debug.Log(string.Format("ResetMaskRuntime 移除：坐标超出边界"));
                 return;
             }
+#endif
             tiledMasks[point.x, point.y] |= (byte)PFAStarMask.Obstacle;
         }
 
         public void AddMask(PFPoint point, PFAStarMask astarMask)
         {
+#if DEBUG
             if (point.x < 0 || point.x >= width || point.y < 0 || point.y >= height)
             {
+                Debug.Log(string.Format("ResetMaskRuntime 移除：坐标超出边界"));
                 return;
             }
+#endif
             tiledMasks[point.x, point.y] |= (byte)astarMask;
         }
 
-        public void AddObstacleRuntime(PFPoint point)
+        public void ResetMaskRuntime(PFPoint point, byte astarMask)
         {
-            if(point.x < 0 || point.x >= width || point.y < 0 || point.y >= height)
-            {
-                return;
-            }
-            tiledMasksRuntime[point.x, point.y] |= (byte)PFAStarMask.Obstacle;
-        }
-
-        public void AddMaskRuntime(PFPoint point, PFAStarMask astarMask)
-        {
+#if DEBUG
             if (point.x < 0 || point.x >= width || point.y < 0 || point.y >= height)
             {
+                Debug.Log(string.Format("ResetMaskRuntime 移除：坐标超出边界"));
                 return;
             }
-            tiledMasksRuntime[point.x, point.y] |= (byte)astarMask;
+#endif
+            astarMask |= tiledMasks[point.x, point.y];
+            tiledMasksRuntime[point.x, point.y] = astarMask;
         }
 
         public void ClearOpenAndCloseList()

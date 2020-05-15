@@ -1,6 +1,7 @@
 ﻿
 
 using MctClient.Framework;
+using System.Collections.Generic;
 using UnityEngine.Tilemaps;
 
 namespace Pathfinder
@@ -24,7 +25,7 @@ namespace Pathfinder
 
         //普通单位
         Agent = 0x2,
-    
+
         //大型单位
         Monster = 0x4,
 
@@ -100,8 +101,55 @@ namespace Pathfinder
         }
 
     }
-
-    class PFAStarMath
+    public class PFAStarNode : IMctCache
     {
+        public PFPoint point;
+
+        public byte mask;
+
+        public PFAStarMap parent;
+
+        public LinkedListNode<PFAStarNode> parentLinkedNode;
+
+
+        public PFAStarNode(PFPoint point, byte mask)
+        {
+            this.point = point;
+            this.mask = mask;
+            parent = null;
+            parentLinkedNode = null;
+        }
+
+        public void InitRuntime(PFPoint point, byte mask)
+        {
+            this.point = point;
+            this.mask = mask;
+        }
+
+        public void UpdatePosition(PFPoint point)
+        {
+            int lastTiledX = this.point.x / parent.tiledWidth;
+            int lastTiledY = this.point.y / parent.tiledHeight;
+            int tiledX = point.x / parent.tiledWidth;
+            int tiledY = point.y / parent.tiledHeight;
+            if ((lastTiledX == tiledX) && (lastTiledY == tiledY))
+            {
+                this.point = point;
+                return;
+            }
+            parent.RemoveAStarNode(this);
+            this.point = point;
+            parent.AddAStarNode(this);
+        }
+
+        public void ResetFromCache()
+        {
+        }
+
+        public void ReleaseToCache()
+        {
+            parentLinkedNode = null;
+            parent = null;
+        }
     }
 }
